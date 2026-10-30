@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#48bafa">
-<title>Flappy Bird 3D</title>
+<title>Flappy Bird 3D - Easy Control</title>
 <style>
 *{box-sizing:border-box}
 body{
@@ -42,7 +42,7 @@ canvas{
  box-shadow:0 12px 35px #09253a88
 }
 .logo{font-size:66px}
-h1{font-size:33px;line-height:1.05;color:#ffe66b;margin:7px 0}
+h1{font-size:32px;line-height:1.05;color:#ffe66b;margin:7px 0}
 p{line-height:1.5;color:#e5f5ff}
 .mainbtn{
  width:100%;padding:15px;margin-top:10px;
@@ -75,10 +75,11 @@ p{line-height:1.5;color:#e5f5ff}
  <div class="panel">
   <div class="logo">🐤</div>
   <h1>FLAPPY BIRD<br>3D</h1>
-  <p>Terbang setinggi mungkin! Hindari semua pipa dan kumpulkan skor tertinggi!</p>
+  <p>Terbang santai, lewati pipa, dan kumpulkan skor tertinggi!</p>
   <button class="mainbtn" id="start">▶ MULAI BERMAIN</button>
   <button class="secondary" id="sound">🔊 SUARA: ON</button>
   <p class="small">Ketuk layar untuk mengepakkan sayap</p>
+  <p class="small">EASY CONTROL EDITION</p>
  </div>
 </div>
 
@@ -121,6 +122,20 @@ function resize(){
 addEventListener("resize",resize);
 resize();
 
+// =================================
+// GAME CONFIGURATION - EASY MODE
+// =================================
+const CONFIG={
+ gravity:1.30,       // Gravitasi lebih ringan
+ flapPower:0.58,     // Kepakan lebih lembut
+ maxFall:0.72,       // Batas kecepatan jatuh
+ pipeSpeed:0.37,     // Kecepatan pipa
+ pipeInterval:2.05,  // Jarak waktu antar pipa
+ gapRatio:0.32,      // Lebar celah berdasarkan layar
+ minGap:205,
+ maxGap:255
+};
+
 // GAME DATA
 let state="home";
 let bird={x:0,y:0,v:0,angle:0};
@@ -130,62 +145,99 @@ let world=0,spawn=0,last=0;
 let soundOn=true,audio=null;
 let particles=[];
 
-try{best=Number(localStorage.getItem("flappyBest"))||0}catch(e){}
+try{
+ best=Number(localStorage.getItem("flappyBest"))||0;
+}catch(e){}
+
 $("best").textContent=best;
 
+// =================================
 // AUDIO
+// =================================
 function initAudio(){
  try{
   audio ||= new(window.AudioContext||window.webkitAudioContext)();
   if(audio.state==="suspended")audio.resume();
  }catch(e){}
 }
+
 function beep(freq=500,dur=.1,type="sine"){
  if(!soundOn)return;
  initAudio();
  if(!audio)return;
+
  const o=audio.createOscillator();
  const g=audio.createGain();
- o.type=type;o.frequency.value=freq;
- g.gain.setValueAtTime(.07,audio.currentTime);
- g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);
- o.connect(g);g.connect(audio.destination);
- o.start();o.stop(audio.currentTime+dur);
+
+ o.type=type;
+ o.frequency.value=freq;
+ g.gain.setValueAtTime(.06,audio.currentTime);
+ g.gain.exponentialRampToValueAtTime(
+  .001,audio.currentTime+dur
+ );
+ o.connect(g);
+ g.connect(audio.destination);
+ o.start();
+ o.stop(audio.currentTime+dur);
 }
+
 $("sound").onclick=()=>{
  soundOn=!soundOn;
- $("sound").textContent=soundOn?"🔊 SUARA: ON":"🔇 SUARA: OFF";
+ $("sound").textContent=
+  soundOn?"🔊 SUARA: ON":"🔇 SUARA: OFF";
  if(soundOn)beep(600,.1);
 };
 
-// DRAWING
+// =================================
+// DRAW HELPERS
+// =================================
 function rect(x,y,w,h,c,r=0){
  ctx.fillStyle=c;
- if(r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
- else ctx.fillRect(x,y,w,h);
-}
-function ellipse(x,y,rx,ry,c){
- ctx.fillStyle=c;ctx.beginPath();
- ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();
-}
-function poly(points,c){
- ctx.fillStyle=c;ctx.beginPath();
- ctx.moveTo(points[0][0],points[0][1]);
- points.slice(1).forEach(p=>ctx.lineTo(p[0],p[1]));
- ctx.closePath();ctx.fill();
-}
-function line(x,y,x2,y2,c,w=2){
- ctx.strokeStyle=c;ctx.lineWidth=w;
- ctx.beginPath();ctx.moveTo(x,y);
- ctx.lineTo(x2,y2);ctx.stroke();
+ if(r){
+  ctx.beginPath();
+  ctx.roundRect(x,y,w,h,r);
+  ctx.fill();
+ }else ctx.fillRect(x,y,w,h);
 }
 
-const ground=()=>H*.89;
+function ellipse(x,y,rx,ry,c){
+ ctx.fillStyle=c;
+ ctx.beginPath();
+ ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);
+ ctx.fill();
+}
+
+function poly(points,c){
+ ctx.fillStyle=c;
+ ctx.beginPath();
+ ctx.moveTo(points[0][0],points[0][1]);
+ points.slice(1).forEach(p=>ctx.lineTo(p[0],p[1]));
+ ctx.closePath();
+ ctx.fill();
+}
+
+function line(x,y,x2,y2,c,w=2){
+ ctx.strokeStyle=c;
+ ctx.lineWidth=w;
+ ctx.beginPath();
+ ctx.moveTo(x,y);
+ ctx.lineTo(x2,y2);
+ ctx.stroke();
+}
+
+function ground(){
+ return H*.89;
+}
+
+// =================================
+// BACKGROUND
+// =================================
 function drawCloud(x,y,s){
  ellipse(x,y,28*s,12*s,"#ffffffcc");
  ellipse(x+19*s,y-8*s,23*s,15*s,"#ffffffee");
  ellipse(x+39*s,y,27*s,12*s,"#ffffffcc");
 }
+
 function background(){
  const g=ctx.createLinearGradient(0,0,0,H);
  g.addColorStop(0,"#35aef5");
@@ -193,28 +245,32 @@ function background(){
  g.addColorStop(1,"#dcf8ff");
  rect(0,0,W,H,g);
 
- // Sun
+ // Matahari
  ellipse(W*.79,H*.15,34,34,"#fff19a");
 
- // Moving clouds
+ // Awan bergerak
  for(let i=0;i<5;i++){
-  let x=((i*W*.35-world*15)%(W+130)+W+130)%(W+130)-50;
+  let x=((i*W*.35-world*12)%(W+130)+W+130)%(W+130)-50;
   drawCloud(x,H*(.16+(i%3)*.12),.9+(i%2)*.2);
  }
 
- // Distant hills
- poly([[0,H*.68],[W*.16,H*.48],[W*.33,H*.67],
- [W*.53,H*.46],[W*.75,H*.68],[W*.91,H*.51],
- [W,H*.64],[W,H*.89],[0,H*.89]],"#83d67b");
+ // Bukit
+ poly([
+  [0,H*.68],[W*.16,H*.48],[W*.33,H*.67],
+  [W*.53,H*.46],[W*.75,H*.68],[W*.91,H*.51],
+  [W,H*.64],[W,H*.89],[0,H*.89]
+ ],"#83d67b");
 
- // Grass
+ // Rumput
  rect(0,H*.83,W,H*.06,"#6dc75e");
  rect(0,H*.87,W,H*.025,"#499f4a");
 }
 
-function drawPipe(x,gapY,top){
+// =================================
+// 3D STYLE PIPES
+// =================================
+function drawPipe(x,gapY,gap,top){
  const w=Math.max(55,W*.145);
- const gap=Math.max(145,Math.min(190,H*.24));
  const bottom=ground();
 
  const grad=ctx.createLinearGradient(x,0,x+w,0);
@@ -223,63 +279,77 @@ function drawPipe(x,gapY,top){
  grad.addColorStop(.65,"#2ca747");
  grad.addColorStop(1,"#126b31");
 
- const cap=12;
  if(top){
-  // Pipa atas
-  rect(x,0,w,gapY-gap/2,grad,4);
-  rect(x-5,gapY-gap/2-13,w+10,13,"#239a45",5);
-  rect(x+8,0,7,Math.max(0,gapY-gap/2-14),"#8aff83");
-  line(x+w-7,0,x+w-7,gapY-gap/2-14,"#125c2b",3);
+  const end=gapY-gap/2;
+  rect(x,0,w,end,grad,4);
+  rect(x-5,end-13,w+10,13,"#239a45",5);
+  rect(x+8,0,7,Math.max(0,end-14),"#8aff83");
+  line(x+w-7,0,x+w-7,end-14,"#125c2b",3);
  }else{
-  // Pipa bawah
-  rect(x,gapY+gap/2,w,bottom-gapY-gap/2,grad,4);
-  rect(x-5,gapY+gap/2,w+10,13,"#259d45",5);
-  rect(x+8,gapY+gap/2+13,7,bottom-gapY-gap/2-13,"#8aff83");
-  line(x+w-7,gapY+gap/2+13,x+w-7,bottom,"#125c2b",3);
+  const start=gapY+gap/2;
+  rect(x,start,w,bottom-start,grad,4);
+  rect(x-5,start,w+10,13,"#259d45",5);
+  rect(x+8,start+13,7,bottom-start-13,"#8aff83");
+  line(x+w-7,start+13,x+w-7,bottom,"#125c2b",3);
  }
 }
+
+// =================================
+// BIRD CHARACTER
+// =================================
 function drawBird(){
  const x=bird.x,y=bird.y;
  const r=Math.max(18,Math.min(W*.052,25));
+
  ctx.save();
  ctx.translate(x,y);
  ctx.rotate(bird.angle);
 
- // Shadow
+ // Bayangan
  ellipse(3,r+10,r*.95,r*.23,"#0002");
 
- // Tail
- poly([[-r*.72,0],[-r*1.3,-r*.35],[-r*1.25,r*.3]],"#e59b22");
+ // Ekor
+ poly([
+  [-r*.72,0],[-r*1.3,-r*.35],[-r*1.25,r*.3]
+ ],"#e59b22");
 
- // Wing
+ // Sayap
  ellipse(-r*.2,r*.23,r*.48,r*.35,"#e6a72d");
  ellipse(-r*.25,r*.15,r*.3,r*.22,"#ffda65");
 
- // Body
- const grad=ctx.createRadialGradient(-r*.3,-r*.35,2,r*.1,r*.1,r*1.2);
+ // Badan gradasi
+ const grad=ctx.createRadialGradient(
+  -r*.3,-r*.35,2,r*.1,r*.1,r*1.2
+ );
  grad.addColorStop(0,"#fff8a0");
  grad.addColorStop(.35,"#ffe34c");
  grad.addColorStop(1,"#ed971a");
  ellipse(0,0,r,r*.82,grad);
 
- // Belly
+ // Perut
  ellipse(-r*.15,r*.32,r*.58,r*.35,"#fff1b5");
 
- // Eye
+ // Mata
  ellipse(r*.45,-r*.28,r*.25,r*.3,"#ffffff");
  ellipse(r*.53,-r*.27,r*.11,r*.17,"#23364a");
  ellipse(r*.56,-r*.34,r*.045,r*.06,"#ffffff");
 
- // Beak
- poly([[r*.75,-r*.08],[r*1.35,r*.02],[r*.77,r*.25]],"#ff7c26");
+ // Paruh
+ poly([
+  [r*.75,-r*.08],[r*1.35,r*.02],[r*.77,r*.25]
+ ],"#ff7c26");
  line(r*.8,r*.08,r*1.23,r*.08,"#c54d1d",2);
 
- // Feather
+ // Bulu kepala
  ellipse(-r*.2,-r*.77,r*.22,r*.18,"#eeb334");
  ellipse(r*.05,-r*.78,r*.18,r*.16,"#ffe67a");
 
  ctx.restore();
 }
+
+// =================================
+// SCORE
+// =================================
 function drawScore(){
  ctx.textAlign="center";
  ctx.font="1000 32px system-ui";
@@ -289,69 +359,98 @@ function drawScore(){
  ctx.fillStyle="#fff";
  ctx.fillText(score,W/2,H*.15);
 }
+
 function drawParticles(){
  particles.forEach(p=>{
   ellipse(p.x,p.y,p.r,p.r,p.color);
  });
 }
 
+// =================================
 // GAME CONTROL
+// =================================
 function reset(){
- score=0;pipes=[];particles=[];
- world=0;spawn=.8;
+ score=0;
+ pipes=[];
+ particles=[];
+ world=0;
+ spawn=1.3;
+
  bird.x=W*.28;
  bird.y=H*.43;
- bird.v=0;bird.angle=0;
+ bird.v=0;
+ bird.angle=0;
+
  $("score").textContent=score;
 }
+
 function startGame(){
  initAudio();
  reset();
  state="playing";
+
  $("home").classList.add("hidden");
  $("over").classList.add("hidden");
  $("paused").classList.add("hidden");
  $("hud").classList.remove("hidden");
+
  beep(650,.1);
  last=performance.now();
 }
+
 function flap(){
  if(state!=="playing")return;
- bird.v=-H*1.18;
+
+ // Kepakan lebih ringan
+ bird.v=-H*CONFIG.flapPower;
+
  beep(520,.08);
+
  for(let i=0;i<4;i++){
   particles.push({
-   x:bird.x-15,y:bird.y,
+   x:bird.x-15,
+   y:bird.y,
    r:2+Math.random()*3,
-   vx:-40-Math.random()*50,
-   vy:(Math.random()-.5)*90,
-   life:.3,color:"#fff4a6"
+   vx:-35-Math.random()*40,
+   vy:(Math.random()-.5)*65,
+   life:.3,
+   color:"#fff4a6"
   });
  }
 }
+
 function endGame(){
  if(state!=="playing")return;
+
  state="over";
  best=Math.max(best,score);
- try{localStorage.setItem("flappyBest",best)}catch(e){}
+
+ try{
+  localStorage.setItem("flappyBest",best);
+ }catch(e){}
+
  $("best").textContent=best;
  $("final").textContent=score;
  $("record").textContent=best;
  $("hud").classList.add("hidden");
  $("over").classList.remove("hidden");
+
  beep(130,.35,"sawtooth");
 }
+
 function pauseGame(){
  if(state!=="playing")return;
  state="paused";
  $("paused").classList.remove("hidden");
 }
+
 function resumeGame(){
  if(state!=="paused")return;
  state="playing";
  $("paused").classList.add("hidden");
  last=performance.now();
 }
+
 function home(){
  state="home";
  $("hud").classList.add("hidden");
@@ -359,6 +458,7 @@ function home(){
  $("paused").classList.add("hidden");
  $("home").classList.remove("hidden");
 }
+
 $("start").onclick=startGame;
 $("again").onclick=startGame;
 $("homeBtn").onclick=home;
@@ -366,10 +466,13 @@ $("pause").onclick=pauseGame;
 $("resume").onclick=resumeGame;
 $("exit").onclick=home;
 
+// =================================
 // TOUCH AND KEYBOARD
+// =================================
 canvas.addEventListener("pointerdown",e=>{
  if(state==="playing")flap();
 });
+
 addEventListener("keydown",e=>{
  if(e.code==="Space"||e.code==="ArrowUp"){
   e.preventDefault();
@@ -379,18 +482,30 @@ addEventListener("keydown",e=>{
  if(e.code==="Escape")pauseGame();
 });
 
-// SPAWN PIPES
+// =================================
+// PIPE GENERATOR
+// =================================
 function spawnPipe(){
- const gap=Math.max(145,Math.min(190,H*.24));
- const margin=gap/2+40;
- const gapY=margin+Math.random()*Math.max(0,ground()-margin*2);
+ const gap=Math.max(
+  CONFIG.minGap,
+  Math.min(CONFIG.maxGap,H*CONFIG.gapRatio)
+ );
+
+ const margin=gap/2+35;
+ const gapY=margin+
+  Math.random()*Math.max(0,ground()-margin*2);
+
  pipes.push({
-  x:W+20,gapY:Math.min(ground()-margin,Math.max(margin,gapY)),
-  gap,passed:false
+  x:W+20,
+  gapY:Math.min(ground()-margin,Math.max(margin,gapY)),
+  gap,
+  passed:false
  });
 }
 
-// COLLISION
+// =================================
+// COLLISION DETECTION
+// =================================
 function hitPipe(p){
  const r=Math.max(13,Math.min(W*.035,18));
  const birdL=bird.x-r*.78;
@@ -398,69 +513,106 @@ function hitPipe(p){
  const birdT=bird.y-r*.75;
  const birdB=bird.y+r*.75;
  const pipeW=Math.max(55,W*.145);
+
  const gapTop=p.gapY-p.gap/2;
  const gapBottom=p.gapY+p.gap/2;
 
  const horizontal=birdR>p.x&&birdL<p.x+pipeW;
  if(!horizontal)return false;
+
  return birdT<gapTop||birdB>gapBottom;
 }
 
+// =================================
+// UPDATE GAME
+// =================================
 function update(dt){
  if(state!=="playing")return;
+
  world+=dt;
 
- // Bird physics
- bird.v+=H*2.25*dt;
- bird.y+=bird.v*dt;
- bird.angle=Math.min(.85,Math.max(-.55,bird.v/H*1.2));
+ // Gravitasi ringan
+ bird.v+=H*CONFIG.gravity*dt;
 
- // Pipes
+ // Batasi kecepatan jatuh
+ bird.v=Math.min(bird.v,H*CONFIG.maxFall);
+
+ bird.y+=bird.v*dt;
+
+ // Rotasi lembut
+ bird.angle=Math.min(
+  .65,
+  Math.max(-.45,bird.v/H*.8)
+ );
+
+ // Pipa
  spawn-=dt;
+
  if(spawn<=0){
-  spawnPipe();spawn=1.65;
+  spawnPipe();
+  spawn=CONFIG.pipeInterval;
  }
- const speed=W*.47;
+
+ const speed=W*CONFIG.pipeSpeed;
+
  for(let i=pipes.length-1;i>=0;i--){
   let p=pipes[i];
   p.x-=speed*dt;
 
   if(!p.passed&&p.x+Math.max(55,W*.145)<bird.x){
-   p.passed=true;score++;
+   p.passed=true;
+   score++;
    $("score").textContent=score;
    beep(900,.09);
   }
-  if(hitPipe(p)){endGame();return}
-  if(p.x+Math.max(55,W*.145)<0)pipes.splice(i,1);
+
+  if(hitPipe(p)){
+   endGame();
+   return;
+  }
+
+  if(p.x+Math.max(55,W*.145)<0){
+   pipes.splice(i,1);
+  }
  }
 
- // Ground and ceiling
+ // Batas layar
  const r=Math.max(13,Math.min(W*.035,18));
+
  if(bird.y-r<0||bird.y+r>ground()){
-  endGame();return;
+  endGame();
+  return;
  }
 
- // Particles
+ // Partikel
  for(let i=particles.length-1;i>=0;i--){
   let p=particles[i];
-  p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
+  p.x+=p.vx*dt;
+  p.y+=p.vy*dt;
+  p.life-=dt;
+
   if(p.life<=0)particles.splice(i,1);
  }
 }
 
-// MAIN LOOP
+// =================================
+// RENDER
+// =================================
 function draw(){
  background();
+
  pipes.forEach(p=>{
-  drawPipe(p.x,p.gapY,true);
-  drawPipe(p.x,p.gapY,false);
+  drawPipe(p.x,p.gapY,p.gap,true);
+  drawPipe(p.x,p.gapY,p.gap,false);
  });
+
  drawParticles();
  drawBird();
 
- // Ground foreground
+ // Tanah depan
  rect(0,ground(),W,H-ground(),"#b7eeff");
  rect(0,ground(),W,8,"#f4f1bd");
+
  if(state==="home"){
   ctx.textAlign="center";
   ctx.fillStyle="#ffffff";
@@ -468,13 +620,20 @@ function draw(){
   ctx.fillText("TAP TO FLY",W/2,H*.75);
  }
 }
+
+// =================================
+// MAIN LOOP
+// =================================
 function loop(now){
  const dt=Math.min((now-last)/1000||0,.035);
  last=now;
+
  update(dt);
  draw();
+
  requestAnimationFrame(loop);
 }
+
 reset();
 last=performance.now();
 requestAnimationFrame(loop);
